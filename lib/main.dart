@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'database_helper.dart';
 
 void main() {
   SystemChrome.setSystemUIOverlayStyle(
@@ -12,40 +13,43 @@ void main() {
 // MODEL
 // ==========================================
 class Diary {
+  final int? id;
   final String title;
   final String content;
   final String date;
-  Diary({required this.title, required this.content, required this.date});
-}
+  final String mood;
 
-// ข้อมูลตัวอย่าง 5 อัน
-final List<Diary> diaries = [
-  Diary(
-    title: 'วันแรกของการเรียน Flutter',
-    content: 'วันนี้ได้เริ่มเขียนแอปตัวแรก รู้สึกตื่นเต้นมาก',
-    date: '1 ก.ย. 2568',
-  ),
-  Diary(
-    title: 'เข้าใจ Widget แล้ว',
-    content: 'ทุกอย่างใน Flutter คือ Widget เหมือนต่อเลโก้',
-    date: '2 ก.ย. 2568',
-  ),
-  Diary(
-    title: 'ทำ ListView สำเร็จ',
-    content: 'วันนี้ทำรายการเลื่อนได้ ภูมิใจจัง',
-    date: '5 มิ.ย. 2568',
-  ),
-  Diary(
-    title: 'ลองทำ Navigation',
-    content: 'เรียนรู้การสลับหน้าจอด้วย Navigator ได้แล้ว',
-    date: '6 ก.ย. 2568',
-  ),
-  Diary(
-    title: 'เริ่มเข้าใจ State',
-    content: 'setState ทำให้หน้าจอวาดใหม่ได้ เข้าใจแล้ว!',
-    date: '7 ก.ย. 2568',
-  ),
-];
+  Diary({
+    this.id,
+    required this.title,
+    required this.content,
+    required this.date,
+    required this.mood,
+  });
+
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{
+      'title': title,
+      'content': content,
+      'date': date,
+      'mood': mood,
+    };
+    if (id != null) {
+      map['id'] = id;
+    }
+    return map;
+  }
+
+  factory Diary.fromMap(Map<String, dynamic> map) {
+    return Diary(
+      id: map['id'],
+      title: map['title'],
+      content: map['content'],
+      date: map['date'],
+      mood: map['mood'] ?? 'เฉยๆ',
+    );
+  }
+}
 
 // ==========================================
 // MAIN APP
@@ -109,7 +113,7 @@ class _MainPageState extends State<MainPage> {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -121,7 +125,7 @@ class _MainPageState extends State<MainPage> {
               setState(() => _selectedIndex = index),
           backgroundColor: Colors.white,
           elevation: 0,
-          indicatorColor: const Color(0xFF6366F1).withOpacity(0.15),
+          indicatorColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.book_outlined),
@@ -153,19 +157,22 @@ class DiaryListPage extends StatefulWidget {
 }
 
 class _DiaryListPageState extends State<DiaryListPage> {
-  // ย้าย List ข้อมูลมาไว้ตรงนี้ (นอก build)
-  final List<Diary> diaries = [
-    Diary(
-      title: 'วันแรกของการเรียน Flutter',
-      content: 'เริ่มเขียนแอปตัวแรก',
-      date: '1 มิ.ย. 2568',
-    ),
-    Diary(
-      title: 'เข้าใจ Widget แล้ว',
-      content: 'ทุกอย่างคือ Widget',
-      date: '3 มิ.ย. 2568',
-    ),
-  ];
+  List<Diary> diaries = [];
+  String searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDiaries();
+  }
+
+  Future<void> _loadDiaries() async {
+    final data = await DatabaseHelper().getAll();
+    if (!mounted) return;
+    setState(() {
+      diaries = data;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,124 +184,236 @@ class _DiaryListPageState extends State<DiaryListPage> {
       const Color(0xFF8B5CF6), // Purple
     ];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('บันทึกของฉัน')),
-      body: ListView.builder(
-        padding: const EdgeInsets.only(
-          top: 8,
-          bottom: 100,
-          left: 16,
-          right: 16,
-        ),
-        itemCount: diaries.length,
-        itemBuilder: (context, i) {
-          final color = iconColors[i % iconColors.length];
-          final diary = diaries[i];
+    final filteredDiaries = diaries
+        .where(
+          (d) => d.title.trim().toLowerCase().contains(
+            searchQuery.trim().toLowerCase(),
+          ),
+        )
+        .toList();
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('บันทึกของฉัน (${diaries.length})'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'ค้นหาบันทึก...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
                 ),
-              ],
+              ),
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          DiaryDetailPage(diary: diary, color: color),
+          ),
+        ),
+      ),
+      body: filteredDiaries.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.menu_book_rounded,
+                    size: 80,
+                    color: Color(0xFFCBD5E1),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    searchQuery.isNotEmpty
+                        ? 'ไม่พบบันทึกที่ค้นหา'
+                        : 'ยังไม่มีบันทึก',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.bold,
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Hero(
-                        tag: 'icon_${diary.title}',
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Icon(
-                            Icons.auto_stories_rounded,
-                            color: color,
-                            size: 28,
-                          ),
-                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (searchQuery.isEmpty)
+                    const Text(
+                      'กดปุ่ม + เพื่อเขียนบันทึกแรก',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                    ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.only(
+                top: 8,
+                bottom: 100,
+                left: 16,
+                right: 16,
+              ),
+              itemCount: filteredDiaries.length,
+              itemBuilder: (context, i) {
+                final color = iconColors[i % iconColors.length];
+                final diary = filteredDiaries[i];
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                DiaryDetailPage(diary: diary, color: color),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
                           children: [
-                            Text(
-                              diary.title,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1E293B),
+                            Hero(
+                              tag: 'icon_${diary.id ?? diary.title}',
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Icon(
+                                  Icons.auto_stories_rounded,
+                                  color: color,
+                                  size: 28,
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${diary.date} • ${diary.content}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF64748B),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    diary.title,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${diary.mood} • ${diary.date}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    diary.content,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        AddDiaryPage(existing: diary),
+                                  ),
+                                );
+                                if (result == true) {
+                                  await _loadDiaries();
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () async {
+                                if (diary.id != null) {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('ลบบันทึก?'),
+                                      content: Text(
+                                        'ต้องการลบ "${diary.title}" ใช่ไหม',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('ยกเลิก'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text(
+                                            'ลบ',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await DatabaseHelper().delete(diary.id!);
+                                    await _loadDiaries();
+                                  }
+                                }
+                              },
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFFCBD5E1),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddDiaryPage()),
           );
+          if (result == true) {
+            await _loadDiaries();
+          }
         },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('ฟีเจอร์เพิ่มบันทึก มาสัปดาห์หน้า!'),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              backgroundColor: const Color(0xFF1E293B),
-            ),
-          );
-        },
-        icon: const Icon(Icons.edit_rounded),
-        label: const Text(
-          'เขียนบันทึก',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 4,
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -326,11 +445,11 @@ class DiaryDetailPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Hero(
-              tag: 'icon_${diary.title}',
+              tag: 'icon_${diary.id ?? diary.title}',
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Icon(Icons.auto_stories_rounded, color: color, size: 32),
@@ -368,6 +487,29 @@ class DiaryDetailPage extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.mood_rounded, size: 14, color: color),
+                  const SizedBox(width: 8),
+                  Text(
+                    diary.mood,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: color,
                     ),
                   ),
                 ],
@@ -419,7 +561,7 @@ class AboutPage extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -471,7 +613,7 @@ class AboutPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
+                      color: Colors.black.withValues(alpha: 0.03),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -545,27 +687,54 @@ class AboutPage extends StatelessWidget {
 }
 
 class AddDiaryPage extends StatefulWidget {
-  const AddDiaryPage({super.key});
+  const AddDiaryPage({super.key, this.existing});
+  final Diary? existing; // รับข้อมูลเดิม (ถ้ามี)
   @override
   State<AddDiaryPage> createState() => _AddDiaryPageState();
 }
 
 class _AddDiaryPageState extends State<AddDiaryPage> {
-  final _formKey = GlobalKey<FormState>(); // กุญแจคุมฟอร์ม
-  final _titleController = TextEditingController(); // อ่านค่าช่องชื่อเรื่อง
-  final _contentController = TextEditingController(); // อ่านค่าช่องเนื้อหา
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _contentController = TextEditingController();
+  String _selectedMood = 'มีความสุข';
+  final List<String> _moods = [
+    'มีความสุข',
+    'เฉยๆ',
+    'เศร้า',
+    'เหนื่อย',
+    'ตื่นเต้น',
+  ];
+  DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existing != null) {
+      _titleController.text = widget.existing!.title;
+      _contentController.text = widget.existing!.content;
+      if (_moods.contains(widget.existing!.mood)) {
+        _selectedMood = widget.existing!.mood;
+      }
+      _selectedDate =
+          DateTime.tryParse(widget.existing!.date) ?? DateTime.now();
+    }
+  }
 
   @override
   void dispose() {
-    _titleController.dispose(); // คืนทรัพยากรตอนปิดหน้า
+    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.existing != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('เขียนบันทึกใหม่')),
+      appBar: AppBar(
+        title: Text(isEditing ? 'แก้ไขบันทึก' : 'เขียนบันทึกใหม่'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -600,13 +769,79 @@ class _AddDiaryPageState extends State<AddDiaryPage> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedMood,
+                decoration: const InputDecoration(
+                  labelText: 'อารมณ์วันนี้',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.mood),
+                ),
+                items: _moods.map((mood) {
+                  return DropdownMenuItem(value: mood, child: Text(mood));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    //  เลือกค่าเลือกต้อง setState เอง
+                    _selectedMood = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: Text(
+                  'วันที่: ${_selectedDate.toString().substring(0, 10)}',
+                ),
+                trailing: const Icon(Icons.edit),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    // เปิดปฏิทินให้เลือก
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020), // เลือกได้ตั้งแต่ปี 2020
+                    lastDate: DateTime(2030), // ถึงปี 2030
+                  );
+                  if (picked != null) {
+                    // ถ้าเลือก (ไม่กดยกเลิก)
+                    setState(() {
+                      _selectedDate = picked;
+                    });
+                  }
+                },
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // ขั้นถัดไปจะเติมโค้ดบันทึกตรงนี้
+                  onPressed: () async {
+                    if (_formKey.currentState!.validate()) {
+                      try {
+                        final diary = Diary(
+                          id: widget.existing?.id,
+                          title: _titleController.text.trim(),
+                          content: _contentController.text.trim(),
+                          date: _selectedDate.toString().substring(0, 10),
+                          mood: _selectedMood,
+                        );
+                        if (widget.existing != null) {
+                          await DatabaseHelper().update(diary);
+                        } else {
+                          await DatabaseHelper().insert(diary);
+                        }
+                        if (!context.mounted) return;
+                        Navigator.pop(context, true);
+                      } catch (e, stackTrace) {
+                        debugPrint('Save diary error: $e');
+                        debugPrintStack(stackTrace: stackTrace);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+                        );
+                      }
+                    }
                   },
+
                   child: const Text('บันทึก'),
                 ),
               ),
