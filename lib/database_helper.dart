@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'main.dart'; // To import Diary model
+import 'models/diary.dart'; // To import Diary model
+import 'api_service.dart'; // To import Pokedek model
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -19,7 +20,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'mydiary.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -35,6 +36,15 @@ class DatabaseHelper {
         );
       }
     }
+    if (oldVersion < 3) {
+      final columns = await db.rawQuery('PRAGMA table_info(diaries)');
+      final hasQuote = columns.any((column) => column['name'] == 'quote');
+      if (!hasQuote) {
+        await db.execute(
+          "ALTER TABLE diaries ADD COLUMN quote TEXT NOT NULL DEFAULT ''",
+        );
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -44,7 +54,19 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         date TEXT NOT NULL,
-        mood TEXT NOT NULL
+        mood TEXT NOT NULL,
+        quote TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE pokedeks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  height TEXT NOT NULL,
+  weight TEXT NOT NULL,
+  image TEXT NOT NULL,
+  type TEXT NOT NULL
+        
       )
     ''');
   }
@@ -54,11 +76,24 @@ class DatabaseHelper {
     return await db.insert('diaries', diary.toMap());
   }
 
+  Future<int> insertPokemon(Pokedek pokedek) async {
+    Database db = await database;
+    return await db.insert('pokedeks', pokedek.toMap());
+  }
+
   Future<List<Diary>> getAll() async {
     Database db = await database;
     final List<Map<String, dynamic>> maps = await db.query('diaries');
     return List.generate(maps.length, (i) {
       return Diary.fromMap(maps[i]);
+    });
+  }
+
+  Future<List<Pokedek>> getAllPokemon() async {
+    Database db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('pokedeks');
+    return List.generate(maps.length, (i) {
+      return Pokedek.fromMap(maps[i]);
     });
   }
 
@@ -70,6 +105,21 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [diary.id],
     );
+  }
+
+  Future<int> updatePokemon(Pokedek pokedek) async {
+    Database db = await database;
+    return await db.update(
+      'pokedeks',
+      pokedek.toMap(),
+      where: 'id = ?',
+      whereArgs: [pokedek.id],
+    );
+  }
+
+  Future<int> deletePokemon(int id) async {
+    Database db = await database;
+    return await db.delete('pokedeks', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> delete(int id) async {

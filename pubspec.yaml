@@ -2,7 +2,7 @@ name: hello_flutter
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -35,8 +35,12 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   english_words: ^4.0.0
-  sqflite: ^2.4.3    # สำหรับใช้งานฐานข้อมูล
-  path: ^1.9.1       # สำหรับจัดการ path ของไฟล์ฐานข้อมูล
+  sqflite: ^2.4.3 # สำหรับใช้งานฐานข้อมูล
+  path: ^1.9.1 # สำหรับจัดการ path ของไฟล์ฐานข้อมูล
+  http: ^1.6.0
+  firebase_core: ^4.15.0
+  cloud_firestore: ^6.10.0
+  firebase_auth: ^6.7.0
 
 dev_dependencies:
   flutter_test:
@@ -48,17 +52,19 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/icon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -90,3 +96,7 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png" # ที่อยู่รูปไอคอน
